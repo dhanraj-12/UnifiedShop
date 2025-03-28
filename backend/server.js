@@ -66,7 +66,7 @@ app.post('/register', (req, res) => {
     );
 });
 
-// User login
+// User logi
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 

@@ -1,97 +1,30 @@
-// server.js
-const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const bodyParser = require('body-parser');
+require('dotenv').config();  
+const express = require('express');  
+const axios = require('axios');  
 
-const app = express();
-const PORT = 3000;
+const app = express();  
+const PORT = 3000;  
+const SERPAPI_KEY = process.env.SERPAPI_KEY; // Store API key in .env file  
 
-app.use(bodyParser.json());
+app.get('/search', async (req, res) => {  
+    try {  
+        const query = req.query.q; // Get product name from query parameter  
+        if (!query) return res.status(400).json({ error: "Product name is required" });  
 
-// Function to get website name
-const getWebsiteName = async (url) => {
-    if (url.includes('amzn')) return 'Amazon';
-    if (url.includes('flipkart')) return 'Flipkart';
-    if (url.includes('meesho')) return 'Meesho';
-    if (url.includes('snapdeal')) return 'Snapdeal';
-    if (url.includes('croma')) return 'Croma';
-    return 'Unknown';
-};
+        const response = await axios.get('https://serpapi.com/search', {  
+            params: {  
+                engine: 'google_shopping',  
+                q: query,  
+                api_key: SERPAPI_KEY  
+            }  
+        });  
 
-// Function to scrape product details
-const scrapeProductDetails = async (url) => {
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    };
+        res.json(response.data);  
+    } catch (error) {  
+        res.status(500).json({ error: error.message });  
+    }  
+});  
 
-    const response = await axios.get(url, { headers });
-    const $ = cheerio.load(response.data);
-    
-    let title, price, imageUrl;
-
-    if (url.includes('amazon')) {
-        title = $('#productTitle').text().trim();
-        imageUrl = $('#landingImage').attr('src');
-
-        // Try multiple price selectors
-        price = $('.a-offscreen').first().text().trim();
-        if (!price) {
-            const symbol = $('.a-price-symbol').first().text().trim();
-            const wholePrice = $('.a-price-whole').first().text().trim();
-            const fraction = $('.a-price-fraction').first().text().trim();
-            if (symbol && wholePrice) {
-                price = `${symbol}${wholePrice}${fraction ? '.' + fraction : ''}`;
-            }
-        }
-
-        if (!title || !imageUrl || !price) {
-            console.log("Amazon scraping failed. Check fetched HTML structure.");
-            console.log(response.data.substring(0, 500)); // Log first 500 characters
-            throw new Error("Failed to extract product details from Amazon");
-        }
-    } else if (url.includes('flipkart')) {
-        title = $('._35KyD6').text().trim();
-        price = $('._1vC4OE._3qQ9m1').text().trim();
-        imageUrl = $('._3BTv9X').find('img').attr('src');
-    } else if (url.includes('meesho')) {
-        title = $('span.sc-eDvSVe.fhfLdV').text().trim();
-        price = $('h4.sc-eDvSVe.biMVPh').text().trim();
-        imageUrl = $('div.ProductDesktopImage__ImageWrapperDesktop-sc-8sgxcr-0 img').attr('src');
-    } else if (url.includes('snapdeal')) {
-        title = $('h1[itemprop="name"]').text().trim();
-        price = $('span[itemprop="price"]').text().trim();
-        imageUrl = $('img[bigsrc]').attr('bigsrc');
-    } else if (url.includes('croma')) {
-        title = $('meta[property="og:title"]').attr('content');
-        price = `₹${Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000}`;
-        imageUrl = $('img[data-testid="super-zoom-img-0"]').attr('data-src');
-    } else {
-        throw new Error('Unsupported website');
-    }
-
-    const websiteName = await getWebsiteName(url);
-
-    console.log('Scraped product details:', { title, price, imageUrl, websiteName, url });
-    return { title, price, imageUrl, websiteName, url };
-};
-
-// API endpoint
-app.get('/scrape', async (req, res) => {
-    const { url } = req.query;
-    if (!url) {
-        return res.status(400).json({ error: "URL is required" });
-    }
-
-    try {
-        const productDetails = await scrapeProductDetails(url);
-        res.json(productDetails);
-    } catch (error) {
-        res.status(500).json({ error: error.message || "Failed to fetch product details" });
-    }
-});
-
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(PORT, () => {  
+    console.log(`Server running on http://localhost:${PORT}`);  
 });
